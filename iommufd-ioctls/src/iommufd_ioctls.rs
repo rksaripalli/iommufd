@@ -167,14 +167,40 @@ impl IommufdVIommu {
 
         // Allocate vIOMMU - use auto-detected type for CMDQV support
         let viommu_type = get_viommu_type();
+        let struct_size = std::mem::size_of::<iommu_viommu_alloc>();
+        eprintln!("DEBUG: iommu_viommu_alloc struct size = {} bytes (expected 40)", struct_size);
+
+        // For CMDQV, we need to pass the tegra241_cmdqv struct for output data
+        let mut cmdqv_data = iommu_viommu_tegra241_cmdqv::default();
+        let (data_len, data_uptr) = if viommu_type == IOMMU_VIOMMU_TYPE_TEGRA241_CMDQV {
+            eprintln!("DEBUG: Using CMDQV data struct, size = {}", std::mem::size_of::<iommu_viommu_tegra241_cmdqv>());
+            (
+                std::mem::size_of::<iommu_viommu_tegra241_cmdqv>() as u32,
+                &mut cmdqv_data as *mut iommu_viommu_tegra241_cmdqv as u64,
+            )
+        } else {
+            (0, 0)
+        };
+
         let mut viommu_alloc = iommu_viommu_alloc {
-            size: std::mem::size_of::<iommu_viommu_alloc>() as u32,
+            size: struct_size as u32,
             type_: viommu_type,
             hwpt_id: s2_hwpt_id,
             dev_id,
+            data_len,
+            data_uptr,
             ..Default::default()
         };
+        eprintln!("DEBUG: viommu_alloc = {{ size: {}, flags: {}, type_: {}, dev_id: {}, hwpt_id: {}, data_len: {}, __reserved: {}, data_uptr: 0x{:x} }}",
+            viommu_alloc.size, viommu_alloc.flags, viommu_alloc.type_,
+            viommu_alloc.dev_id, viommu_alloc.hwpt_id,
+            viommu_alloc.data_len, viommu_alloc.__reserved, viommu_alloc.data_uptr);
         iommufd.alloc_iommu_viommu(&mut viommu_alloc)?;
+
+        if viommu_type == IOMMU_VIOMMU_TYPE_TEGRA241_CMDQV {
+            eprintln!("DEBUG: CMDQV output: vintf_page0_pgoff=0x{:x}, vintf_page0_pgsz=0x{:x}",
+                cmdqv_data.out_vintf_page0_pgoff, cmdqv_data.out_vintf_page0_pgsz);
+        }
         let viommu_id = viommu_alloc.out_viommu_id;
 
         // ALlocate bypass s1_hwpt which will be used when the virtual IOMMU
