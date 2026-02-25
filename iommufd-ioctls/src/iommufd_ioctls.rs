@@ -299,39 +299,24 @@ impl IommufdVIommu {
 
 impl Drop for IommufdVIommu {
     fn drop(&mut self) {
-        self.iommufd
-            .destroy_iommufd(self.viommu_id)
-            .inspect_err(|e| {
-                eprintln!("Failed to destroy vIOMMU id {}: {}", self.viommu_id, e);
-            })
-            .unwrap();
+        // Destroy in reverse order of creation - children before parents
+        // Order: bypass_hwpt -> abort_hwpt -> viommu -> s2_hwpt
 
-        self.iommufd
-            .destroy_iommufd(self.s2_hwpt_id)
-            .inspect_err(|e| {
-                eprintln!("Failed to destroy s2_hwpt id {}: {}", self.s2_hwpt_id, e);
-            })
-            .unwrap();
+        if let Err(e) = self.iommufd.destroy_iommufd(self.bypass_hwpt_id) {
+            eprintln!("Failed to destroy bypass_hwpt id {}: {}", self.bypass_hwpt_id, e);
+        }
 
-        self.iommufd
-            .destroy_iommufd(self.bypass_hwpt_id)
-            .inspect_err(|e| {
-                eprintln!(
-                    "Failed to destroy bypass_hwpt id {}: {}",
-                    self.bypass_hwpt_id, e
-                );
-            })
-            .unwrap();
+        if let Err(e) = self.iommufd.destroy_iommufd(self.abort_hwpt_id) {
+            eprintln!("Failed to destroy abort_hwpt id {}: {}", self.abort_hwpt_id, e);
+        }
 
-        self.iommufd
-            .destroy_iommufd(self.abort_hwpt_id)
-            .inspect_err(|e| {
-                eprintln!(
-                    "Failed to destroy abort_hwpt id {}: {}",
-                    self.abort_hwpt_id, e
-                );
-            })
-            .unwrap();
+        if let Err(e) = self.iommufd.destroy_iommufd(self.viommu_id) {
+            eprintln!("Failed to destroy vIOMMU id {}: {}", self.viommu_id, e);
+        }
+
+        if let Err(e) = self.iommufd.destroy_iommufd(self.s2_hwpt_id) {
+            eprintln!("Failed to destroy s2_hwpt id {}: {}", self.s2_hwpt_id, e);
+        }
     }
 }
 
