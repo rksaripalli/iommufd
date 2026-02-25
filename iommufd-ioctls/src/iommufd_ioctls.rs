@@ -3,14 +3,62 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::os::unix::io::{AsRawFd, RawFd};
+use std::path::Path;
 use std::sync::Arc;
 
 use iommufd_bindings::iommufd::*;
 use vmm_sys_util::errno::Error as SysError;
 
 use crate::{IommufdError, Result};
+
+// vIOMMU type constants (from linux/iommufd.h)
+// These should match the kernel's enum iommu_viommu_type
+pub const IOMMU_VIOMMU_TYPE_DEFAULT: u32 = 0;
+pub const IOMMU_VIOMMU_TYPE_ARM_SMMUV3: u32 = 1;
+pub const IOMMU_VIOMMU_TYPE_TEGRA241_CMDQV: u32 = 2;
+
+/// Detect if the system has NVIDIA CMDQV hardware (GH200/GB200)
+/// by checking for ACPI devices with HID "NVDA200C"
+fn detect_cmdqv_hardware() -> bool {
+    // Check /sys/bus/acpi/devices for NVDA200C devices
+    let acpi_path = Path::new("/sys/bus/acpi/devices");
+    if let Ok(entries) = fs::read_dir(acpi_path) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            if name.to_string_lossy().starts_with("NVDA200C") {
+                eprintln!("IOMMUFD: Detected NVIDIA CMDQV hardware: {:?}", name);
+                return true;
+            }
+        }
+    }
+
+    // Alternative: check /sys/devices for platform devices with CMDQV
+    let platform_path = Path::new("/sys/devices/platform");
+    if let Ok(entries) = fs::read_dir(platform_path) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            if name.to_string_lossy().contains("cmdqv") {
+                eprintln!("IOMMUFD: Detected CMDQV platform device: {:?}", name);
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+/// Get the appropriate vIOMMU type for the current hardware
+pub fn get_viommu_type() -> u32 {
+    if detect_cmdqv_hardware() {
+        eprintln!("IOMMUFD: Using IOMMU_VIOMMU_TYPE_TEGRA241_CMDQV (type 2) for NVIDIA CMDQV hardware");
+        IOMMU_VIOMMU_TYPE_TEGRA241_CMDQV
+    } else {
+        eprintln!("IOMMUFD: Using IOMMU_VIOMMU_TYPE_ARM_SMMUV3 (type 1) for generic ARM SMMUv3");
+        IOMMU_VIOMMU_TYPE_ARM_SMMUV3
+    }
+}
 
 pub struct IommuFd {
     iommufd: File,
@@ -117,10 +165,11 @@ impl IommufdVIommu {
         iommufd.alloc_iommu_hwpt(&mut s2_iommufd_hwpt_alloc)?;
         let s2_hwpt_id = s2_iommufd_hwpt_alloc.out_hwpt_id;
 
-        // Allocate vIOMMU
+        // Allocate vIOMMU - use auto-detected type for CMDQV support
+        let viommu_type = get_viommu_type();
         let mut viommu_alloc = iommu_viommu_alloc {
             size: std::mem::size_of::<iommu_viommu_alloc>() as u32,
-            type_: iommu_viommu_type_IOMMU_VIOMMU_TYPE_ARM_SMMUV3,
+            type_: viommu_type,
             hwpt_id: s2_hwpt_id,
             dev_id,
             ..Default::default()
