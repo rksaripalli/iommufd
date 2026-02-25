@@ -853,11 +853,14 @@ pub struct iommu_viommu_alloc {
     pub dev_id: __u32,
     pub hwpt_id: __u32,
     pub out_viommu_id: __u32,
+    pub data_len: __u32,
+    pub __reserved: __u32,
+    pub data_uptr: __u64,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of iommu_viommu_alloc"][::std::mem::size_of::<iommu_viommu_alloc>() - 24usize];
-    ["Alignment of iommu_viommu_alloc"][::std::mem::align_of::<iommu_viommu_alloc>() - 4usize];
+    ["Size of iommu_viommu_alloc"][::std::mem::size_of::<iommu_viommu_alloc>() - 40usize];
+    ["Alignment of iommu_viommu_alloc"][::std::mem::align_of::<iommu_viommu_alloc>() - 8usize];
     ["Offset of field: iommu_viommu_alloc::size"]
         [::std::mem::offset_of!(iommu_viommu_alloc, size) - 0usize];
     ["Offset of field: iommu_viommu_alloc::flags"]
@@ -870,6 +873,12 @@ const _: () = {
         [::std::mem::offset_of!(iommu_viommu_alloc, hwpt_id) - 16usize];
     ["Offset of field: iommu_viommu_alloc::out_viommu_id"]
         [::std::mem::offset_of!(iommu_viommu_alloc, out_viommu_id) - 20usize];
+    ["Offset of field: iommu_viommu_alloc::data_len"]
+        [::std::mem::offset_of!(iommu_viommu_alloc, data_len) - 24usize];
+    ["Offset of field: iommu_viommu_alloc::__reserved"]
+        [::std::mem::offset_of!(iommu_viommu_alloc, __reserved) - 28usize];
+    ["Offset of field: iommu_viommu_alloc::data_uptr"]
+        [::std::mem::offset_of!(iommu_viommu_alloc, data_uptr) - 32usize];
 };
 #[doc = " struct iommu_vdevice_alloc - ioctl(IOMMU_VDEVICE_ALLOC)\n @size: sizeof(struct iommu_vdevice_alloc)\n @viommu_id: vIOMMU ID to associate with the virtual device\n @dev_id: The physical device to allocate a virtual instance on the vIOMMU\n @out_vdevice_id: Object handle for the vDevice. Pass to IOMMU_DESTORY\n @virt_id: Virtual device ID per vIOMMU, e.g. vSID of ARM SMMUv3, vDeviceID\n           of AMD IOMMU, and vRID of a nested Intel VT-d to a Context Table\n\n Allocate a virtual device instance (for a physical device) against a vIOMMU.\n This instance holds the device's information (related to its vIOMMU) in a VM."]
 #[repr(C)]
