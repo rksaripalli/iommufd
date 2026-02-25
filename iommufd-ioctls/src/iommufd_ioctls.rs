@@ -205,13 +205,21 @@ impl IommufdVIommu {
 
         // ALlocate bypass s1_hwpt which will be used when the virtual IOMMU
         // is not initilized by the guest
+        // For CMDQV, use viommu_id as pt_id instead of s2_hwpt_id
+        let bypass_pt_id = if viommu_type == IOMMU_VIOMMU_TYPE_TEGRA241_CMDQV {
+            viommu_id
+        } else {
+            s2_hwpt_id
+        };
+        eprintln!("DEBUG: Allocating bypass s1_hwpt with pt_id={} (viommu_id={}, s2_hwpt_id={})",
+            bypass_pt_id, viommu_id, s2_hwpt_id);
         let bypass_s1_hwpt_data = iommu_hwpt_arm_smmuv3 {
             ste: [SMMU_STE_CFG_BYPASS | SMMU_STE_VALID, 0x0],
         };
         let mut bypass_iommufd_hwpt_alloc = iommu_hwpt_alloc {
             size: std::mem::size_of::<iommu_hwpt_alloc>() as u32,
             dev_id,
-            pt_id: s2_hwpt_id,
+            pt_id: bypass_pt_id,
             data_type: s1_hwpt_data_type,
             data_len: std::mem::size_of::<iommu_hwpt_arm_smmuv3>() as u32,
             data_uptr: &bypass_s1_hwpt_data as *const iommu_hwpt_arm_smmuv3 as u64,
@@ -219,16 +227,23 @@ impl IommufdVIommu {
         };
         iommufd.alloc_iommu_hwpt(&mut bypass_iommufd_hwpt_alloc)?;
         let bypass_hwpt_id = bypass_iommufd_hwpt_alloc.out_hwpt_id;
+        eprintln!("DEBUG: bypass s1_hwpt allocated: hwpt_id={}", bypass_hwpt_id);
 
         // Allocate abort s1_hwpt which will be used when the virtual IOMMU
         // is configured in such mode
+        let abort_pt_id = if viommu_type == IOMMU_VIOMMU_TYPE_TEGRA241_CMDQV {
+            viommu_id
+        } else {
+            s2_hwpt_id
+        };
+        eprintln!("DEBUG: Allocating abort s1_hwpt with pt_id={}", abort_pt_id);
         let abort_s1_hwpt_data = iommu_hwpt_arm_smmuv3 {
             ste: [SMMU_STE_VALID, 0x0],
         };
         let mut abort_iommufd_hwpt_alloc = iommu_hwpt_alloc {
             size: std::mem::size_of::<iommu_hwpt_alloc>() as u32,
             dev_id,
-            pt_id: s2_hwpt_id,
+            pt_id: abort_pt_id,
             data_type: s1_hwpt_data_type,
             data_len: std::mem::size_of::<iommu_hwpt_arm_smmuv3>() as u32,
             data_uptr: &abort_s1_hwpt_data as *const iommu_hwpt_arm_smmuv3 as u64,
@@ -236,6 +251,7 @@ impl IommufdVIommu {
         };
         iommufd.alloc_iommu_hwpt(&mut abort_iommufd_hwpt_alloc)?;
         let abort_hwpt_id = abort_iommufd_hwpt_alloc.out_hwpt_id;
+        eprintln!("DEBUG: abort s1_hwpt allocated: hwpt_id={}", abort_hwpt_id);
 
         Ok(IommufdVIommu {
             iommufd,
