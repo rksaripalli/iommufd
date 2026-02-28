@@ -272,6 +272,10 @@ impl IommufdVIommu {
     pub fn invalidate_hwpt(&self, cmd: &mut IommufdInvalidateData) -> Result<bool> {
         match cmd {
             IommufdInvalidateData::Smmuv3(data) => {
+                eprintln!(
+                    "DEBUG: invalidate_hwpt: viommu_id={}, cmd[0]=0x{:016x}, cmd[1]=0x{:016x}",
+                    self.viommu_id, data.cmd[0], data.cmd[1]
+                );
                 let mut hw_invalidate = iommu_hwpt_invalidate {
                     size: std::mem::size_of::<iommu_hwpt_invalidate>() as u32,
                     hwpt_id: self.viommu_id,
@@ -282,7 +286,12 @@ impl IommufdVIommu {
                     data_uptr: data as *mut iommu_viommu_arm_smmuv3_invalidate as u64,
                     ..Default::default()
                 };
-                self.iommufd.invalidate_hwpt(&mut hw_invalidate)?;
+                let result = self.iommufd.invalidate_hwpt(&mut hw_invalidate);
+                eprintln!(
+                    "DEBUG: invalidate_hwpt result: {:?}, entry_num after={}",
+                    result.is_ok(), hw_invalidate.entry_num
+                );
+                result?;
 
                 if hw_invalidate.entry_num == 1 {
                     Ok(true)
@@ -374,6 +383,14 @@ impl IommufdVDevice {
 
         match hwpt_data {
             IommufdHwptData::Smmuv3(data) => {
+                eprintln!(
+                    "DEBUG: allocate_s1_hwpt: vdevice_id={}, dev_id={}, viommu_id={}, virt_id=0x{:x}",
+                    self.vdevice_id, self.dev_id, self.viommu.viommu_id, self.virt_id
+                );
+                eprintln!(
+                    "DEBUG: allocate_s1_hwpt: STE[0]=0x{:016x}, STE[1]=0x{:016x}",
+                    data.ste[0], data.ste[1]
+                );
                 let mut s1_iommufd_hwpt_alloc = iommu_hwpt_alloc {
                     size: std::mem::size_of::<iommu_hwpt_alloc>() as u32,
                     dev_id: self.dev_id,
@@ -383,14 +400,25 @@ impl IommufdVDevice {
                     data_uptr: data as *const iommu_hwpt_arm_smmuv3 as u64,
                     ..Default::default()
                 };
-                self.viommu
+                let result = self.viommu
                     .iommufd
-                    .alloc_iommu_hwpt(&mut s1_iommufd_hwpt_alloc)?;
+                    .alloc_iommu_hwpt(&mut s1_iommufd_hwpt_alloc);
 
-                let s1_hwpt_id = s1_iommufd_hwpt_alloc.out_hwpt_id;
-                self.s1_hwpt_id = Some(s1_hwpt_id);
-
-                Ok(s1_hwpt_id)
+                match &result {
+                    Ok(()) => {
+                        let s1_hwpt_id = s1_iommufd_hwpt_alloc.out_hwpt_id;
+                        eprintln!(
+                            "DEBUG: allocate_s1_hwpt: success, s1_hwpt_id={}",
+                            s1_hwpt_id
+                        );
+                        self.s1_hwpt_id = Some(s1_hwpt_id);
+                        Ok(s1_hwpt_id)
+                    }
+                    Err(e) => {
+                        eprintln!("DEBUG: allocate_s1_hwpt: failed: {:?}", e);
+                        Err(e.clone())
+                    }
+                }
             }
             IommufdHwptData::Vtd(_) => unimplemented!(),
         }
