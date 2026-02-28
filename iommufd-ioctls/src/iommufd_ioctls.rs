@@ -404,7 +404,7 @@ impl IommufdVDevice {
                     .iommufd
                     .alloc_iommu_hwpt(&mut s1_iommufd_hwpt_alloc);
 
-                match &result {
+                match result {
                     Ok(()) => {
                         let s1_hwpt_id = s1_iommufd_hwpt_alloc.out_hwpt_id;
                         eprintln!(
@@ -416,7 +416,7 @@ impl IommufdVDevice {
                     }
                     Err(e) => {
                         eprintln!("DEBUG: allocate_s1_hwpt: failed: {:?}", e);
-                        Err(e.clone())
+                        Err(e)
                     }
                 }
             }
