@@ -11,7 +11,6 @@ use std::sync::Arc;
 use iommufd_bindings::iommufd::*;
 use vmm_sys_util::errno::Error as SysError;
 
-use std::fs::OpenOptions;
 use std::io::Write;
 
 fn debug_log(msg: &str) {
